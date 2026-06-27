@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Client 运行时产生的文件
+client/logs/
+client/data/
+
+# 临时文件
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
