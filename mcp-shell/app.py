@@ -16,6 +16,9 @@ local_ws = None
 local_ws_lock = asyncio.Lock()
 pending = {}
 
+async def health(request):
+    return JSONResponse({"status": "ok", "service": "mcp-shell"})
+
 async def sse1_stream(request):
     sid = request.query_params.get("session_id", "")
     if not sid: return JSONResponse({"error":"need session_id"}, 400)
@@ -106,7 +109,6 @@ async def sse2_post(request):
                 if "close" in e or "reset" in e or "disconnect" in e: local_ws=None; result="[电脑离线]"
                 else: result = f"(云端转发错误: {e})"
             finally: pending.pop(rid, None)
-        # 解析结果：检测 mimeType 字段决定是图片还是文本
         try:
             rd = json.loads(result)
             if rd.get("mimeType","").startswith("image/"):
@@ -138,6 +140,7 @@ async def ws_handler(ws: WebSocket):
             if local_ws == ws: local_ws = None
 
 app = Starlette(routes=[
+    Route("/", endpoint=health),
     Route("/sse", endpoint=sse1_stream),
     Route("/sse/messages", endpoint=sse1_post, methods=["POST"]),
     Route("/sse2", endpoint=sse2_stream),
