@@ -1,5 +1,5 @@
 {
   "root_directory": "mcp-shell",
-  "build_command": "cd mcp-shell && pip install -r requirements.txt",
-  "start_command": "cd mcp-shell && python app.py"
+  "build_command": "pip install -r requirements.txt",
+  "start_command": "python app.py"
 }
