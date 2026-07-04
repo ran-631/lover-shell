@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 import websocket
 
-WS_URL = "wss://xn--r4wqe.preview.tencent-zeabur.cn/ws"
+WS_URL = "wss://ranrande.zeabur.app/ws"
 PING_INTERVAL = 20
 
 BASE_DIR = Path(__file__).parent
