@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""mcp-shell - 双 MCP 服务 (终极安全稳定 & 302重定向修复版)"""
+"""mcp-shell - 终极防断线版 (加入 15 秒心跳包机制)"""
 import subprocess
 import os
 import json
@@ -34,35 +34,46 @@ async def health(request):
         "computer_connected": ws_connected
     })
 
-async def sse1_stream(request):
-    sid = request.query_params.get("session_id", "default_session")
-    conn = SSEConnection(sid)
-    sse1_clients[sid] = conn
-    
-    async def es():
-        try:
-            host = request.headers.get("host", "ranrande.zeabur.app")
-            # 修复 302 关键点：强行使用 https 协议，防止反向代理导致 302 重定向报错
-            yield f"event: endpoint\ndata: https://{host}/sse/messages?session_id={sid}\n\n"
-            while True:
-                data = await conn.queue.get()
+# ========== 核心修改：心跳包机制 ==========
+async def sse_event_stream(request, conn, sse_clients_dict, session_id, url_path):
+    try:
+        host = request.headers.get("host", "ranrande.zeabur.app")
+        # 建立连接后立刻返回 endpoint
+        yield f"event: endpoint\ndata: https://{host}{url_path}?session_id={session_id}\n\n"
+        
+        while True:
+            try:
+                # 最多等 15 秒，如果有数据就拿，没数据就触发 TimeoutError
+                data = await asyncio.wait_for(conn.queue.get(), timeout=15.0)
                 try:
                     json_data = json.dumps(data)
                     yield f"data: {json_data}\n\n"
                 except Exception:
                     pass
-        except asyncio.CancelledError:
-            pass
-        finally:
-            sse1_clients.pop(sid, None)
-            
-    return StreamingResponse(es(), media_type="text/event-stream",
+            except asyncio.TimeoutError:
+                # 15秒到了没数据？发一个空的心跳包给前端，防止 Zeabur/前端强制挂断！
+                yield ": keep-alive\n\n"
+            except asyncio.CancelledError:
+                raise
+    except asyncio.CancelledError:
+        pass
+    finally:
+        sse_clients_dict.pop(session_id, None)
+
+async def sse1_stream(request):
+    sid = request.query_params.get("session_id", "default_session")
+    conn = SSEConnection(sid)
+    sse1_clients[sid] = conn
+    return StreamingResponse(
+        sse_event_stream(request, conn, sse1_clients, sid, "/sse/messages"), 
+        media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
             "Access-Control-Allow-Origin": "*"
-        })
+        }
+    )
 
 async def sse1_post(request):
     sid = request.query_params.get("session_id", "default_session")
@@ -132,31 +143,16 @@ async def sse2_stream(request):
     sid = request.query_params.get("session_id", "default_session")
     conn = SSEConnection(sid)
     sse2_clients[sid] = conn
-    
-    async def es():
-        try:
-            host = request.headers.get("host", "ranrande.zeabur.app")
-            # 修复 302 关键点：强行使用 https 协议，防止反向代理导致 302 重定向报错
-            yield f"event: endpoint\ndata: https://{host}/sse2/messages?session_id={sid}\n\n"
-            while True:
-                data = await conn.queue.get()
-                try:
-                    json_data = json.dumps(data)
-                    yield f"data: {json_data}\n\n"
-                except Exception:
-                    pass
-        except asyncio.CancelledError:
-            pass
-        finally:
-            sse2_clients.pop(sid, None)
-            
-    return StreamingResponse(es(), media_type="text/event-stream",
+    return StreamingResponse(
+        sse_event_stream(request, conn, sse2_clients, sid, "/sse2/messages"), 
+        media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
             "Access-Control-Allow-Origin": "*"
-        })
+        }
+    )
 
 async def sse2_post(request):
     global local_ws, pending
