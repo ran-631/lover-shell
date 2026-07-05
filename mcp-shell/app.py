@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""mcp-shell - 双 MCP 服务 (终极安全稳定版)"""
+"""mcp-shell - 双 MCP 服务 (终极安全稳定 & 302重定向修复版)"""
 import subprocess
 import os
 import json
@@ -22,7 +22,7 @@ pending = {}
 
 class SSEConnection:
     def __init__(self, session_id: str):
-        self.queue = asyncio.Queue(maxsize=100)  # 限制队列大小防止堆积爆内存
+        self.queue = asyncio.Queue(maxsize=100)
         self.session_id = session_id
 
 async def health(request):
@@ -42,15 +42,15 @@ async def sse1_stream(request):
     async def es():
         try:
             host = request.headers.get("host", "ranrande.zeabur.app")
-            scheme = request.url.scheme
-            yield f"event: endpoint\ndata: {scheme}://{host}/sse/messages?session_id={sid}\n\n"
+            # 修复 302 关键点：强行使用 https 协议，防止反向代理导致 302 重定向报错
+            yield f"event: endpoint\ndata: https://{host}/sse/messages?session_id={sid}\n\n"
             while True:
                 data = await conn.queue.get()
                 try:
                     json_data = json.dumps(data)
                     yield f"data: {json_data}\n\n"
                 except Exception:
-                    pass  # 忽略序列化失败的单条消息，防止流断开
+                    pass
         except asyncio.CancelledError:
             pass
         finally:
@@ -109,7 +109,6 @@ async def sse1_post(request):
         })
     elif method == "tools/call":
         cmd = params.get("arguments", {}).get("command", "")
-        # 安全修复：关闭 shell=True，防止注入攻击
         try:
             args = shlex.split(cmd)
             r = subprocess.run(args, shell=False, capture_output=True, text=True, timeout=60)
@@ -137,8 +136,8 @@ async def sse2_stream(request):
     async def es():
         try:
             host = request.headers.get("host", "ranrande.zeabur.app")
-            scheme = request.url.scheme
-            yield f"event: endpoint\ndata: {scheme}://{host}/sse2/messages?session_id={sid}\n\n"
+            # 修复 302 关键点：强行使用 https 协议，防止反向代理导致 302 重定向报错
+            yield f"event: endpoint\ndata: https://{host}/sse2/messages?session_id={sid}\n\n"
             while True:
                 data = await conn.queue.get()
                 try:
@@ -202,7 +201,6 @@ async def sse2_post(request):
         result = "[电脑离线]"
         fut = None
         
-        # 安全修复：全程在锁内安全读取和判断 ws 变量，防止并发竞态
         async with local_ws_lock:
             if local_ws:
                 rid = f"r{mid or '0'}_{asyncio.get_running_loop().time()}"
@@ -222,7 +220,6 @@ async def sse2_post(request):
         
         if fut:
             try:
-                # 30秒超时机制，超时会自动在 pending 中清理防止内存泄漏
                 result = await asyncio.wait_for(fut, 30)
             except asyncio.TimeoutError:
                 result = "[电脑超时]"
@@ -266,7 +263,6 @@ async def ws_handler(ws: WebSocket):
         async with local_ws_lock:
             if local_ws == ws:
                 local_ws = None
-        # 连接断开时，自动清理 pending 任务释放内存，彻底杜绝死锁与泄漏
         for rid, fut in list(pending.items()):
             if not fut.done():
                 fut.set_result("[电脑已断开连接]")
