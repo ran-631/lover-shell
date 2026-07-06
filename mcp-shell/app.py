@@ -108,7 +108,7 @@ async def sse1_post(request):
             "result": {
                 "tools": [{
                     "name": "run",
-                    "description": "浜戠鎵ц鍛戒护",
+                    "description": "云端执行命令",
                     "inputSchema": {
                         "type": "object",
                         "properties": {"command": {"type": "string"}},
@@ -182,11 +182,11 @@ async def sse2_post(request):
         pass
     elif method == "tools/list":
         tools = [
-            {"name": "computer", "description": "鐢佃剳 - 鎵цcmd鍛戒护", "inputSchema": {"type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"]}},
-            {"name": "keyboard", "description": "閿洏 - 妯℃嫙鎵撳瓧杈撳叆", "inputSchema": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}},
-            {"name": "click", "description": "榧犳爣 - 鐐瑰嚮灞忓箷鍧愭爣", "inputSchema": {"type": "object", "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}}, "required": ["x", "y"]}},
-            {"name": "screenshot", "description": "鎴浘 - 鑾峰彇灞忓箷鎴浘", "inputSchema": {"type": "object", "properties": {}}},
-            {"name": "say", "description": "娑堟伅 - 鍙戦€佹秷鎭粰鐢佃剳", "inputSchema": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}},
+            {"name": "computer", "description": "电脑 - 执行cmd命令", "inputSchema": {"type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"]}},
+            {"name": "keyboard", "description": "键盘 - 模拟打字输入", "inputSchema": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}},
+            {"name": "click", "description": "鼠标 - 点击屏幕坐标", "inputSchema": {"type": "object", "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}}, "required": ["x", "y"]}},
+            {"name": "screenshot", "description": "截图 - 获取屏幕截图", "inputSchema": {"type": "object", "properties": {}}},
+            {"name": "say", "description": "消息 - 发送消息给电脑", "inputSchema": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}},
         ]
         await conn.queue.put({"jsonrpc": "2.0", "id": mid, "result": {"tools": tools}})
     elif method == "tools/call":
