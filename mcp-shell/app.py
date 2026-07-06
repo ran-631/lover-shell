@@ -1,11 +1,10 @@
-#!/usr/bin/env python3
-"""mcp-shell - 终极防断线版 (加入 15 秒心跳包机制)"""
+﻿#!/usr/bin/env python3
+"""mcp-shell - 缁堟瀬闃叉柇绾跨増 (鍔犲叆 15 绉掑績璺冲寘鏈哄埗)"""
 import subprocess
 import os
 import json
 import asyncio
 import traceback
-import shlex
 from starlette.applications import Starlette
 from starlette.routing import Route, WebSocketRoute
 from starlette.websockets import WebSocket
@@ -34,16 +33,16 @@ async def health(request):
         "computer_connected": ws_connected
     })
 
-# ========== 核心修改：心跳包机制 ==========
+# ========== 鏍稿績淇敼锛氬績璺冲寘鏈哄埗 ==========
 async def sse_event_stream(request, conn, sse_clients_dict, session_id, url_path):
     try:
         host = request.headers.get("host", "ranrande.zeabur.app")
-        # 建立连接后立刻返回 endpoint
+        # 寤虹珛杩炴帴鍚庣珛鍒昏繑鍥?endpoint
         yield f"event: endpoint\ndata: https://{host}{url_path}?session_id={session_id}\n\n"
         
         while True:
             try:
-                # 最多等 15 秒，如果有数据就拿，没数据就触发 TimeoutError
+                # 鏈€澶氱瓑 15 绉掞紝濡傛灉鏈夋暟鎹氨鎷匡紝娌℃暟鎹氨瑙﹀彂 TimeoutError
                 data = await asyncio.wait_for(conn.queue.get(), timeout=15.0)
                 try:
                     json_data = json.dumps(data)
@@ -51,7 +50,7 @@ async def sse_event_stream(request, conn, sse_clients_dict, session_id, url_path
                 except Exception:
                     pass
             except asyncio.TimeoutError:
-                # 15秒到了没数据？发一个空的心跳包给前端，防止 Zeabur/前端强制挂断！
+                # 15绉掑埌浜嗘病鏁版嵁锛熷彂涓€涓┖鐨勫績璺冲寘缁欏墠绔紝闃叉 Zeabur/鍓嶇寮哄埗鎸傛柇锛?
                 yield ": keep-alive\n\n"
             except asyncio.CancelledError:
                 raise
@@ -109,7 +108,7 @@ async def sse1_post(request):
             "result": {
                 "tools": [{
                     "name": "run",
-                    "description": "云端执行命令",
+                    "description": "浜戠鎵ц鍛戒护",
                     "inputSchema": {
                         "type": "object",
                         "properties": {"command": {"type": "string"}},
@@ -121,8 +120,7 @@ async def sse1_post(request):
     elif method == "tools/call":
         cmd = params.get("arguments", {}).get("command", "")
         try:
-            args = shlex.split(cmd)
-            r = subprocess.run(args, shell=False, capture_output=True, text=True, timeout=60)
+            r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=60)
             o = (r.stdout or "(ok)") + ("\n" + r.stderr if r.stderr else "")
             await conn.queue.put({
                 "jsonrpc": "2.0", 
@@ -184,17 +182,17 @@ async def sse2_post(request):
         pass
     elif method == "tools/list":
         tools = [
-            {"name": "computer", "description": "电脑 - 执行cmd命令", "inputSchema": {"type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"]}},
-            {"name": "keyboard", "description": "键盘 - 模拟打字输入", "inputSchema": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}},
-            {"name": "click", "description": "鼠标 - 点击屏幕坐标", "inputSchema": {"type": "object", "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}}, "required": ["x", "y"]}},
-            {"name": "screenshot", "description": "截图 - 获取屏幕截图", "inputSchema": {"type": "object", "properties": {}}},
-            {"name": "say", "description": "消息 - 发送消息给电脑", "inputSchema": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}},
+            {"name": "computer", "description": "鐢佃剳 - 鎵цcmd鍛戒护", "inputSchema": {"type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"]}},
+            {"name": "keyboard", "description": "閿洏 - 妯℃嫙鎵撳瓧杈撳叆", "inputSchema": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}},
+            {"name": "click", "description": "榧犳爣 - 鐐瑰嚮灞忓箷鍧愭爣", "inputSchema": {"type": "object", "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}}, "required": ["x", "y"]}},
+            {"name": "screenshot", "description": "鎴浘 - 鑾峰彇灞忓箷鎴浘", "inputSchema": {"type": "object", "properties": {}}},
+            {"name": "say", "description": "娑堟伅 - 鍙戦€佹秷鎭粰鐢佃剳", "inputSchema": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}},
         ]
         await conn.queue.put({"jsonrpc": "2.0", "id": mid, "result": {"tools": tools}})
     elif method == "tools/call":
         tool_name = params.get("name", "")
         args = params.get("arguments", {})
-        result = "[电脑离线]"
+        result = "[鐢佃剳绂荤嚎]"
         fut = None
         
         async with local_ws_lock:
@@ -210,7 +208,7 @@ async def sse2_post(request):
                     await local_ws.send_text(json.dumps({"t": ct, "d": cd, "id": rid}))
                 except Exception:
                     local_ws = None
-                    result = "[电脑离线]"
+                    result = "[鐢佃剳绂荤嚎]"
                     pending.pop(rid, None)
                     fut = None
         
@@ -218,9 +216,9 @@ async def sse2_post(request):
             try:
                 result = await asyncio.wait_for(fut, 30)
             except asyncio.TimeoutError:
-                result = "[电脑超时]"
+                result = "[鐢佃剳瓒呮椂]"
             except Exception as e:
-                result = f"(云端转发错误: {e})"
+                result = f"(浜戠杞彂閿欒: {e})"
             finally:
                 pending.pop(rid, None)
                 
@@ -261,7 +259,7 @@ async def ws_handler(ws: WebSocket):
                 local_ws = None
         for rid, fut in list(pending.items()):
             if not fut.done():
-                fut.set_result("[电脑已断开连接]")
+                fut.set_result("[鐢佃剳宸叉柇寮€杩炴帴]")
 
 app = Starlette(routes=[
     Route("/", endpoint=health),
